@@ -1,10 +1,14 @@
-
 <!DOCTYPE html>
 <html lang="de">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Habit Tracker</title>
+<title>Gewohnheiten</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4caf50">
+
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
@@ -13,17 +17,15 @@
 body{margin:0;background:var(--bg);font-family:system-ui;color:var(--text);}
 .app{max-width:420px;margin:auto;padding:16px;}
 header{display:flex;justify-content:space-between;align-items:center;}
-button,input{border:none;border-radius:10px;padding:8px;}
-.month{display:flex;justify-content:space-between;margin:10px 0;}
+button,input,textarea{border:none;border-radius:10px;padding:8px;}
 .habit{background:var(--card);padding:12px;border-radius:14px;margin-bottom:14px;}
 .days{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;}
 .days input{width:22px;height:22px;}
 .progress{background:#bbb;height:10px;border-radius:10px;margin-top:8px;}
 .bar{height:100%;background:var(--accent);width:0%;}
-.note{width:100%;margin-top:6px;}
 .add,.backup{display:flex;gap:6px;margin:10px 0;}
-.small{font-size:13px;opacity:.8;}
 canvas{background:var(--card);border-radius:12px;padding:8px;}
+.small{font-size:13px;opacity:.8;}
 </style>
 </head>
 
@@ -44,9 +46,9 @@ canvas{background:var(--card);border-radius:12px;padding:8px;}
 </div>
 
 <div class="backup">
-<button onclick="exportData()">💾 Export</button>
+<button onclick="exportData()">📤 Export</button>
 <input type="file" id="importFile" hidden>
-<button onclick="document.getElementById('importFile').click()">📂 Import</button>
+<button onclick="document.getElementById('importFile').click()">📥 Import</button>
 </div>
 
 <div class="month">
@@ -73,24 +75,24 @@ let habits = JSON.parse(localStorage.getItem("habits")) || [
 let date = new Date();
 const habitsDiv = document.getElementById("habits");
 
-function saveHabits(){
+function save(){
   localStorage.setItem("habits", JSON.stringify(habits));
   render();
 }
 
 function addHabit(){
-  const val = newHabit.value.trim();
-  if(val && !habits.includes(val)){
-    habits.push(val);
-    saveHabits();
+  const v = newHabit.value.trim();
+  if(v && !habits.includes(v)){
+    habits.push(v);
     newHabit.value="";
+    save();
   }
 }
 
 function removeHabit(h){
   if(confirm("Gewohnheit löschen?")){
     habits = habits.filter(x=>x!==h);
-    saveHabits();
+    save();
   }
 }
 
@@ -100,23 +102,23 @@ function render(){
   const daysInMonth = new Date(date.getFullYear(),date.getMonth()+1,0).getDate();
 
   habits.forEach(h=>{
-    const card = document.createElement("div");
+    const card=document.createElement("div");
     card.className="habit";
     card.innerHTML=`
       <h3>${h} <button onclick="removeHabit('${h}')">❌</button></h3>
       <div class="days"></div>
       <div class="progress"><div class="bar"></div></div>
-      <textarea class="note" placeholder="Notiz..."></textarea>
+      <textarea placeholder="Notiz..."></textarea>
     `;
 
-    const days = card.querySelector(".days");
-    const bar = card.querySelector(".bar");
-    const note = card.querySelector(".note");
+    const days=card.querySelector(".days");
+    const bar=card.querySelector(".bar");
+    const note=card.querySelector("textarea");
 
-    note.value = localStorage.getItem(`note-${h}`)||"";
-    note.oninput = ()=>localStorage.setItem(`note-${h}`, note.value);
+    note.value = localStorage.getItem("note-"+h) || "";
+    note.oninput=()=>localStorage.setItem("note-"+h,note.value);
 
-    for(let d=1; d<=daysInMonth; d++){
+    for(let d=1;d<=daysInMonth;d++){
       const cb=document.createElement("input");
       cb.type="checkbox";
       const key=`${h}-${date.getFullYear()}-${date.getMonth()}-${d}`;
@@ -136,95 +138,76 @@ function render(){
       updateYear();
     }
     update();
+
     habitsDiv.appendChild(card);
   });
-
-  updateWeek();
-  updateYear();
 }
 
 function updateWeek(){
   let total=0,done=0;
-  const now=new Date();
-  habits.forEach(h=>{
+  for(let h of habits){
     for(let i=0;i<7;i++){
-      const d=new Date(now);
-      d.setDate(now.getDate()-i);
+      const d=new Date(); d.setDate(d.getDate()-i);
       const key=`${h}-${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
       total++;
       if(localStorage.getItem(key)==="1") done++;
     }
-  });
-  weekStats.textContent = `Diese Woche: ${Math.round(done/total*100)||0}% erledigt`;
+  }
+  weekStats.textContent=`Diese Woche: ${total?Math.round(done/total*100):0}%`;
 }
 
-let yearChart;
+let chart;
 function updateYear(){
-  const data = habits.map(h=>{
+  const data=habits.map(h=>{
     let c=0;
-    for(let i=0;i<localStorage.length;i++){
-      const key=localStorage.key(i);
-      if(key.startsWith(h) && localStorage.getItem(key)==="1") c++;
-    }
+    for(let k in localStorage)
+      if(k.startsWith(h+"-") && localStorage[k]==="1") c++;
     return c;
   });
-
-  if(yearChart) yearChart.destroy();
-  yearChart=new Chart(yearChart=document.getElementById("yearChart"),{
+  if(chart) chart.destroy();
+  chart=new Chart(yearChart,{
     type:"bar",
     data:{labels:habits,datasets:[{data,backgroundColor:"#4caf50"}]},
     options:{plugins:{legend:{display:false}}}
   });
 }
 
-function changeMonth(n){
-  date.setMonth(date.getMonth()+n);
-  render();
-}
+function changeMonth(n){date.setMonth(date.getMonth()+n);render();}
 
-/* DARK MODE */
 dark.onclick=()=>{
   document.body.classList.toggle("dark");
   localStorage.setItem("dark",document.body.classList.contains("dark"));
-}
-if(localStorage.getItem("dark")==="true") document.body.classList.add("dark");
+};
+if(localStorage.getItem("dark")==="true")document.body.classList.add("dark");
 
-/* NOTIFICATION */
 notify.onclick=()=>{
   Notification.requestPermission().then(p=>{
     if(p==="granted") new Notification("Zeit für deine Gewohnheiten 💪");
   });
-}
+};
 
-/* EXPORT */
 function exportData(){
-  const data = {};
-  for(let i=0;i<localStorage.length;i++){
-    const k = localStorage.key(i);
-    data[k]=localStorage.getItem(k);
-  }
-  const blob = new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "habit-backup.json";
+  const data=JSON.stringify(localStorage);
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([data],{type:"application/json"}));
+  a.download="habits-backup.json";
   a.click();
 }
 
-/* IMPORT */
-importFile.onchange = e=>{
-  const file = e.target.files[0];
-  if(!file) return;
-  const reader=new FileReader();
-  reader.onload=()=>{
-    const data = JSON.parse(reader.result);
-    localStorage.clear();
-    for(const k in data) localStorage.setItem(k,data[k]);
-    location.reload();
-  };
-  reader.readAsText(file);
+importFile.onchange=e=>{
+  const r=new FileReader();
+  r.onload=()=>{const d=JSON.parse(r.result);for(let k in d)localStorage.setItem(k,d[k]);render();}
+  r.readAsText(e.target.files[0]);
 };
 
 render();
 </script>
+
+<script>
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("service-worker.js");
+}
+</script>
+
 </body>
 </html>
